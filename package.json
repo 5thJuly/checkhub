@@ -11,7 +11,8 @@
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",
     "format": "oxfmt",
-    "build:pages": "vite build --config vite.pages.config.ts"
+    "build:pages": "vite build --config vite.pages.config.ts",
+    "deploy:pages": "vite build --config vite.pages.config.ts && npx gh-pages -d dist-pages --dotfiles --nojekyll"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

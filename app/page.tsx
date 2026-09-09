@@ -1,16 +1,15 @@
 'use client';
-import { createSpinProfile, spinProgress, createFoodSelector, stopFraction } from '@/lib/case-mechanics';
+import { createSpinProfile, spinProgress, stopFraction } from '@/lib/case-mechanics';
 import { foods, type Food } from '@/lib/foods';
 import { copy, foodName, foodSubtitle, priceLabel, type Language } from '@/lib/i18n';
 import { useGlobalSpinCount } from '@/hooks/use-global-spin-count';
 import { AccountPanel, AdminPanel } from '@/components/account-panel';
 import { useAccount } from '@/hooks/use-account';
-import { personalFoods, personalSelector } from '@/lib/personal-pool';
+import { personalFoods } from '@/lib/personal-pool';
 import { CaseAudio } from '@/lib/case-audio';
 import { flushSync } from 'react-dom';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, AudioLines, Volume2, VolumeX, Sparkles, Star, Utensils, Leaf } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 
@@ -46,19 +45,15 @@ export default function Home(){
  const [adminView,setAdminView]=useState(false);
  useEffect(()=>{const update=()=>setAdminView(window.location.hash==='#admin');update();window.addEventListener('hashchange',update);return()=>window.removeEventListener('hashchange',update)},[]);
  const [githubStars,setGithubStars]=useState<number|null>(null);
- const [budget,setBudget]=useState('50'),[custom,setCustom]=useState('50'),[veg,setVeg]=useState(false),[sound,setSound]=useState(true),[spinning,setSpinning]=useState(false),[result,setResult]=useState<Food|null>(null),[revealed,setRevealed]=useState(false);
+ const [veg,setVeg]=useState(false),[sound,setSound]=useState(true),[spinning,setSpinning]=useState(false),[result,setResult]=useState<Food|null>(null),[revealed,setRevealed]=useState(false);
  const [reel,setReel]=useState(()=>foods.slice(0,12).map((food,id)=>({food,id}))),[moving,setMoving]=useState(false);
  const busy=useRef(false),viewport=useRef<HTMLDivElement>(null);
  useEffect(()=>{const context=(document as Document & {modelContext?:{registerTool:(tool:unknown,options:unknown)=>void}}).modelContext;if(!context)return;const lifecycle=new AbortController();try{context.registerTool({name:'list_lunch_items',description:'Read all lunch options with approximate prices and vegetarian status.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:(input:unknown)=>{if(!input||typeof input!=='object'||Object.keys(input).length)throw new Error('Expected an empty object');return foods.map(({name,price,veg})=>({name,approximatePriceVND:price*1000,vegetarian:!!veg}))}},{signal:lifecycle.signal})}catch{}return ()=>lifecycle.abort()},[]);
  useEffect(()=>{let selected:Language='vi';try{const saved=localStorage.getItem('truanayangi-language');selected=saved==='en'||saved==='vi'?saved:'vi'}catch{}setLanguage(selected);document.documentElement.lang=selected;document.title=selected==='en'?'What should I eat for lunch?':'Trưa nay ăn gì?'},[]);
  const changeLanguage=(next:Language)=>{setLanguage(next);document.documentElement.lang=next;document.title=next==='en'?'What should I eat for lunch?':'Trưa nay ăn gì?';try{localStorage.setItem('truanayangi-language',next)}catch{}};
  useEffect(()=>{let live=true;const key='truanayangi-github-stars';try{const cached=JSON.parse(localStorage.getItem(key)||'null');if(cached&&Number.isInteger(cached.count)&&Date.now()-cached.savedAt<900_000){setGithubStars(cached.count);return}}catch{}fetch('https://api.github.com/repos/nagisanzenin/truanayangi').then(response=>response.ok?response.json():Promise.reject()).then((data:unknown)=>{if(!data||typeof data!=='object'||!('stargazers_count' in data)||!Number.isInteger(data.stargazers_count))return;const count=data.stargazers_count as number;if(!live)return;setGithubStars(count);try{localStorage.setItem(key,JSON.stringify({count,savedAt:Date.now()}))}catch{}}).catch(()=>{});return()=>{live=false}},[]);
- const target=budget==='custom'?Number(custom):Number(budget);
- const validTarget=Number.isInteger(target)&&target>=30&&target<=180;
  const population=useMemo(()=>personalFoods(account.profile),[account.profile]);
  const eligible=useMemo(()=>population.filter(f=>!veg||f.veg),[population,veg]);
- const lunchSelector=useMemo(()=>personalSelector(eligible,validTarget?target:50),[eligible,target,validTarget]);
- const filteredMean=lunchSelector?.expectedPrice??0;
 
  const audio=useRef<CaseAudio|null>(null);
  useEffect(()=>{
@@ -75,13 +70,13 @@ export default function Home(){
  const position=useRef(-400);
  const attachTrack=useCallback((node:HTMLDivElement|null)=>{track.current=node;if(node)node.style.transform=`translate3d(${position.current}px,0,0)`},[]);
  const frame=useRef(0);
- useEffect(()=>{if(spinning||!eligible.length||!lunchSelector)return;setReel(current=>current.map(item=>({...item,food:eligible.find(f=>(f.customId??f.image)===(item.food.customId??item.food.image))??lunchSelector.choose(eligible)})))},[eligible,lunchSelector,spinning]);
+ useEffect(()=>{if(spinning||!eligible.length)return;setReel(current=>current.map(item=>({...item,food:eligible.find(f=>(f.customId??f.image)===(item.food.customId??item.food.image))??eligible[Math.floor(Math.random()*eligible.length)]})))},[eligible,spinning]);
  useEffect(()=>()=>{cancelAnimationFrame(frame.current)},[]);
  function open(){
-  if(busy.current||!validTarget||!eligible.length||!lunchSelector||!track.current||!viewport.current)return;
+  if(busy.current||!eligible.length||!track.current||!viewport.current)return;
   audio.current?.unlock();
   busy.current=true;
-  const winner=lunchSelector.choose(eligible);
+  const winner=eligible[Math.floor(Math.random()*eligible.length)];
   const spinId=crypto.randomUUID();
   const step=254,tileWidth=240,width=viewport.current.clientWidth;
   const start=position.current;
@@ -96,8 +91,8 @@ export default function Home(){
   const last=Math.max(...items.map(item=>item.id));
   const recent:Food[]=[];
   for(let id=last+1;id<=target+4;id++){
-   const alternatives=eligible.filter(food=>!recent.includes(food)&&(lunchSelector.probabilities.get(food)??0)>0);
-   const food=id===target?winner:lunchSelector.choose(alternatives.length?alternatives:eligible);
+   const alternatives=eligible.filter(food=>!recent.includes(food));
+   const food=id===target?winner:(alternatives.length?alternatives[Math.floor(Math.random()*alternatives.length)]:eligible[Math.floor(Math.random()*eligible.length)]);
    items.push({id,food});recent.push(food);if(recent.length>8)recent.shift();
   }
   flushSync(()=>{setReel(items);setSpinning(true);setMoving(true);setResult(null)});
@@ -134,7 +129,7 @@ export default function Home(){
  {counterEnabled&&<p className="global-counter" title={t.counterTitle}>{t.counterPrefix} <strong>{globalSpins===null?'—':new Intl.NumberFormat(language==='vi'?'vi-VN':'en-US').format(globalSpins)}</strong> {t.counterSuffix}</p>}
  <section className="case-panel" aria-label={t.caseLabel}>
  <div className={`reel-window ${moving?'is-spinning':''} `} ref={viewport}><div className="selector-line"/><div className="reel-track" ref={attachTrack}>{reel.filter(({id})=>id>=visibleStart&&id<visibleStart+12).map(({food,id})=><Card key={id} food={food} language={language} slot={id}/>)}</div><div className="reel-fade left"/><div className="reel-fade right"/></div></section>
- <div className="control-bar"><div className="filters"><div className="budget"><label id="budget-label">{t.spend}</label><Select value={budget} onValueChange={v=>setBudget(v??'50')} disabled={spinning}><SelectTrigger aria-labelledby="budget-label"><SelectValue>{budget==='custom'?t.custom:priceLabel(budget,language)}</SelectValue></SelectTrigger><SelectContent>{['35','50','75','100','150'].map(v=><SelectItem key={v} value={v}>{priceLabel(v,language)}</SelectItem>)}<SelectItem value="custom">{t.custom}</SelectItem></SelectContent></Select>{budget==='custom'&&<div className="custom-spend"><input aria-label={t.customSpend} aria-invalid={!validTarget} type="number" inputMode="numeric" min="30" max="180" step="1" value={custom} disabled={spinning} onChange={e=>setCustom(e.target.value)}/><span>{t.thousandPerMeal}</span></div>}{!validTarget&&<small className="spend-note" role="alert">{t.spendError}</small>}{validTarget&&eligible.length>0&&(veg||Math.abs(filteredMean-target)>.5)&&<small className="spend-note">{t.vegetarianPool} {priceLabel(Math.round(filteredMean),language,true)} / {language==='vi'?'bữa':'meal'}</small>}</div><label className="veg"><Switch checked={veg} onCheckedChange={setVeg} disabled={spinning} aria-label={t.vegetarianOnly}/><span><Leaf size={15}/> {t.vegetarian}</span></label></div><div className="open-wrap"><button className="open-button" disabled={spinning||!validTarget||!eligible.length} onClick={open}>{spinning?<AudioLines size={22}/>:<Sparkles size={21}/>} {spinning?t.opening:result?t.openAgain:t.open} <span>↗</span></button></div></div>
+ <div className="control-bar"><div className="filters"><label className="veg"><Switch checked={veg} onCheckedChange={setVeg} disabled={spinning} aria-label={t.vegetarianOnly}/><span><Leaf size={15}/> {t.vegetarian}</span></label></div><div className="open-wrap"><button className="open-button" disabled={spinning||!eligible.length} onClick={open}>{spinning?<AudioLines size={22}/>:<Sparkles size={21}/>} {spinning?t.opening:result?t.openAgain:t.open} <span>↗</span></button></div></div>
  <Dialog open={revealed} onOpenChange={setRevealed}><DialogContent className="winner-dialog" showCloseButton={false}>{result&&<><span className="winner-label">{t.newItem}</span><DialogTitle className="winner-title">{foodName(result,language)}</DialogTitle><DialogDescription className="winner-description">{t.referencePrice} · {priceLabel(result.price,language,true)} {t.perPerson}</DialogDescription><div className="winner-art" style={{'--rarity':colors[result.rarity]} as React.CSSProperties}><FoodImage food={result} language={language}/></div><div className="winner-actions"><a className="find-button" href={`https://www.google.com/maps/search/${encodeURIComponent(result.name+' '+t.nearby)}`} target="_blank" rel="noreferrer">{t.find} <ArrowUpRight size={16}/></a><a className="grabfood-button" href={`https://food.grab.com/vn/vi/restaurants?${new URLSearchParams({search:result.name,'support-deeplink':'true',searchParameter:result.name})}`} target="_blank" rel="noreferrer" aria-label={language==='vi'?`Đặt ${result.name} qua GrabFood`:`Find ${foodName(result,language)} on GrabFood`}><span className="grabfood-label">{language==='vi'?'Đặt qua':'Order on'} <strong>GrabFood</strong></span><ArrowUpRight size={17} aria-hidden="true"/></a><button onClick={()=>setRevealed(false)}>{t.continue}</button></div></>}</DialogContent></Dialog>
 
  <section className="inventory"><div className="section-heading"><div><span className="eyebrow">{t.whatsInside}</span><div className="inventory-title-row"><h2>{t.items} <span>{eligible.length.toString().padStart(2,'0')}</span></h2><AccountPanel account={account} language={language} disabled={spinning} variant="inventory"/></div></div><div className="rarity-legend">{t.tiers.map((tier,i)=><span key={tier}><i style={{background:colors[i]}}/>{tier}</span>)}</div></div><div className="inventory-grid">{inventoryCards}</div></section>
