@@ -75,7 +75,7 @@ export function spinProgress(progress: number, friction: number) {
 // - Pink (Cực phẩm - Rarity 2): 3.20%
 // - Red (Tối mật - Rarity 3): 0.64%
 // - Gold (★ Đặc biệt - Rarity 4): 0.26%
-export const CSGO_TIER_WEIGHTS = [0.47952, 0.23972, 0.11192, 0.08632, 0.08252] as const;
+export const CSGO_TIER_WEIGHTS = [0.469365, 0.234635, 0.105840, 0.100000, 0.09016] as const;
 
 export function chooseWeightedFood<T extends { rarity: number }>(items: T[], random = Math.random): T {
     if (!items.length) throw new Error('No items to choose from');
