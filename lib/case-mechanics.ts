@@ -66,3 +66,42 @@ export function spinProgress(progress:number,friction:number) {
  const p=Math.max(0,Math.min(1,progress));
  return 1-Math.pow(1-p,friction);
 }
+
+// Official CS:GO case opening probabilities:
+// - Blue (Quốc dân - Rarity 0): 79.92%
+// - Purple (Hiếm - Rarity 1): 15.98%
+// - Pink (Cực phẩm - Rarity 2): 3.20%
+// - Red (Tối mật - Rarity 3): 0.64%
+// - Gold (★ Đặc biệt - Rarity 4): 0.26%
+export const CSGO_TIER_WEIGHTS = [0.7992, 0.1598, 0.032, 0.0064, 0.0026] as const;
+
+export function chooseWeightedFood<T extends { rarity: number }>(items: T[], random = Math.random): T {
+ if (!items.length) throw new Error('No items to choose from');
+ if (items.length === 1) return items[0];
+
+ const counts = new Map<number, number>();
+ for (const item of items) {
+  const r = Math.min(4, Math.max(0, item.rarity ?? 0));
+  counts.set(r, (counts.get(r) || 0) + 1);
+ }
+
+ const weights: number[] = [];
+ let totalWeight = 0;
+
+ for (const item of items) {
+  const r = Math.min(4, Math.max(0, item.rarity ?? 0));
+  const tierWeight = CSGO_TIER_WEIGHTS[r] ?? 0.0026;
+  const count = counts.get(r) || 1;
+  const w = tierWeight / count;
+  weights.push(w);
+  totalWeight += w;
+ }
+
+ let roll = random() * totalWeight;
+ for (let i = 0; i < items.length; i++) {
+  roll -= weights[i];
+  if (roll <= 0) return items[i];
+ }
+ return items[items.length - 1];
+}
+

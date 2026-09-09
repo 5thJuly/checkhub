@@ -1,5 +1,5 @@
 'use client';
-import { createSpinProfile, spinProgress, stopFraction } from '@/lib/case-mechanics';
+import { createSpinProfile, spinProgress, stopFraction, chooseWeightedFood } from '@/lib/case-mechanics';
 import { foods, type Food } from '@/lib/foods';
 import { copy, foodName, foodSubtitle, priceLabel, type Language } from '@/lib/i18n';
 import { useGlobalSpinCount } from '@/hooks/use-global-spin-count';
@@ -70,13 +70,13 @@ export default function Home(){
  const position=useRef(-400);
  const attachTrack=useCallback((node:HTMLDivElement|null)=>{track.current=node;if(node)node.style.transform=`translate3d(${position.current}px,0,0)`},[]);
  const frame=useRef(0);
- useEffect(()=>{if(spinning||!eligible.length)return;setReel(current=>current.map(item=>({...item,food:eligible.find(f=>(f.customId??f.image)===(item.food.customId??item.food.image))??eligible[Math.floor(Math.random()*eligible.length)]})))},[eligible,spinning]);
+ useEffect(()=>{if(spinning||!eligible.length)return;setReel(current=>current.map(item=>({...item,food:eligible.find(f=>(f.customId??f.image)===(item.food.customId??item.food.image))??chooseWeightedFood(eligible)})))},[eligible,spinning]);
  useEffect(()=>()=>{cancelAnimationFrame(frame.current)},[]);
  function open(){
   if(busy.current||!eligible.length||!track.current||!viewport.current)return;
   audio.current?.unlock();
   busy.current=true;
-  const winner=eligible[Math.floor(Math.random()*eligible.length)];
+  const winner=chooseWeightedFood(eligible);
   const spinId=crypto.randomUUID();
   const step=254,tileWidth=240,width=viewport.current.clientWidth;
   const start=position.current;
@@ -92,7 +92,8 @@ export default function Home(){
   const recent:Food[]=[];
   for(let id=last+1;id<=target+4;id++){
    const alternatives=eligible.filter(food=>!recent.includes(food));
-   const food=id===target?winner:(alternatives.length?alternatives[Math.floor(Math.random()*alternatives.length)]:eligible[Math.floor(Math.random()*eligible.length)]);
+   const pool=alternatives.length?alternatives:eligible;
+   const food=id===target?winner:chooseWeightedFood(pool);
    items.push({id,food});recent.push(food);if(recent.length>8)recent.shift();
   }
   flushSync(()=>{setReel(items);setSpinning(true);setMoving(true);setResult(null)});
